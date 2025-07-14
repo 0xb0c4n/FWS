@@ -1,0 +1,14 @@
+{
+  "name": "fws",
+  "version": "1.0.0",
+  "description": "A job-opportunity finder for students or freelancers",
+  "main": "src/main.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "0xb0c4n",
+  "license": "MIT"
+}
