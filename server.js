@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
-const mysql = require("mysql");
+const mysql = require("mysql2");
 const session = require("express-session");
 const path = require("path");
 require("dotenv").config();
@@ -11,13 +11,14 @@ const app = express();
 const bdd = mysql.createConnection({
   host: 'localhost',
   user: 'root',
-  password: '',
+  password: 'root',
   database: 'fws'
 });
 
 bdd.connect(err => {
   if (err) {
     console.log("Error connecting to Db");
+    console.log(err)
     return;
   }
   console.log("Connection established");
