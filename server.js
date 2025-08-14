@@ -3,8 +3,15 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const mysql = require("mysql2");
 const session = require("express-session");
+const cors = require("cors");
 const path = require("path");
+const http = require("http");
+const { Server } = require("socket.io");
+const sessionMiddleware = require("./config/session");
+
 require("dotenv").config();
+
+const authRoutes = require("./routes/auth.routes");
 
 const app = express();
 
@@ -25,74 +32,47 @@ bdd.connect(err => {
 });
 
 // Middleware
+app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 app.use(express.json());
-app.use(session({
-  secret: process.env.SESSION_SECRET || "Qw9#sDp!kX8$3vTz1Lc0Mn@Y",
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: false,
-    httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24
-  }
-}));
-
-// 👉 Servir les fichiers statiques front
 app.use(express.static(path.join(__dirname, "public")));
+app.use(sessionMiddleware);
+app.use("/api", authRoutes);
 
-// --- API ---
-app.post("/api/signup", async (req, res) => {
-  const { name, lastName, email, password, birthdate } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const sql = "INSERT INTO users (name, lastname, email, password, birthdate) VALUES (?, ?, ?, ?, ?)";
+// Connexion Socket.IO
+const userSockets = new Map();
 
-  bdd.query(sql, [name, lastName, email, hashedPassword, birthdate], (err, result) => {
-    if (err) {
-      return res.status(400).json({ message: "Email déjà utilisé ou erreur serveur." });
-    }
-    res.json({ message: "Utilisateur créé avec succès !" });
-  });
+io.use((socket, next) => {
+  sessionMiddleware(socket.request, {}, next);
 });
 
-app.post("/api/login", (req, res) => {
-  const { email, password } = req.body;
-  const sql = "SELECT * FROM users WHERE email = ?";
-
-  bdd.query(sql, [email], async (err, result) => {
-    if (err) return res.status(500).json({ message: "Erreur serveur" });
-    if (result.length === 0) return res.status(400).json({ message: "Email non trouvé." });
-
-    const user = result[0];
-    const match = await bcrypt.compare(password, user.password);
-
-    if (!match) return res.status(400).json({ message: "Mot de passe incorrect" });
-
-    req.session.user = {
-      id: user.id,
-      name: user.name,
-      email: user.email
-    };
-
-    res.json({ message: "Connexion réussie", user: req.session.user });
-  });
-});
-
-app.get("/api/me", (req, res) => {
-  if (req.session.user) {
-    res.json({ user: req.session.user });
-  } else {
-    res.status(401).json({ message: "Non connecté" });
+io.on("connection", (socket) => {
+  const session = socket.request.session;
+  if (!session?.user?.id) {
+    return socket.disconnect();
   }
-});
 
-app.post("/api/logout", (req, res) => {
-  req.session.destroy(err => {
-    if (err) return res.status(500).json({ message: "Erreur de déconnexion" });
-    res.clearCookie("connect.sid");
-    res.json({ message: "Déconnexion réussie" });
+  const userId = session.user.id;
+  userSockets.set(userId, socket);
+
+  console.log(`🔌 User ${userId} connecté via socket`);
+
+  socket.on("sendMessage", ({ to, message }) => {
+    const targetSocket = userSockets.get(to);
+    if (targetSocket) {
+      targetSocket.emit("receiveMessage", {
+        from: userId,
+        message,
+        sent_at: new Date().toISOString()
+      });
+    }
+  });
+
+  socket.on("disconnect", () => {
+    userSockets.delete(userId);
+    console.log(`❌ User ${userId} déconnecté`);
   });
 });
 
-app.listen(3000, () => {
-  console.log("✅ Serveur opérationnel sur http://localhost:3000");
+server.listen(3000, () => {
+  console.log("✅ Serveur en ligne sur http://localhost:3000");
 });
