@@ -79,10 +79,10 @@ exports.getContacts = (req, res) => {
 };
 
 exports.signup = async (req, res) => {
-  const { name, lastName, email, password, birthdate } = req.body;
+  const { name, lastName, email, password } = req.body;
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  User.createUser({ name, lastName, email, password: hashedPassword, birthdate }, (err) => {
+  User.createUser({ name, lastName, email, password: hashedPassword }, (err) => {
     if (err) return res.status(400).json({ message: "Email déjà utilisé ou erreur serveur." });
     res.json({ message: "Utilisateur créé avec succès !" });
   });
